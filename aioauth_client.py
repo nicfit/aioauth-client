@@ -117,13 +117,14 @@ class Client(object, metaclass=ClientRegistry):
     user_info_url = None
 
     def __init__(self, base_url=None, authorize_url=None, access_token_key=None,
-                 access_token_url=None, logger=None):
+                 access_token_url=None, logger=None, request_params={}):
         """Initialize the client."""
         self.base_url = base_url or self.base_url
         self.authorize_url = authorize_url or self.authorize_url
         self.access_token_key = access_token_key or self.access_token_key
         self.access_token_url = access_token_url or self.access_token_url
         self.logger = logger or logging.getLogger('OAuth: %s' % self.name)
+        self.request_params = request_params
 
     def _get_url(self, url):
         """Build provider's url. Join with base_url part if needed."""
@@ -175,9 +176,9 @@ class OAuth1Client(Client):
     def __init__(self, consumer_key, consumer_secret, base_url=None, authorize_url=None,
                  oauth_token=None, oauth_token_secret=None, request_token_url=None,
                  access_token_url=None, access_token_key=None, logger=None, signature=None,
-                 **params):
+                 request_params={}, **params):
         """Initialize the client."""
-        super().__init__(base_url, authorize_url, access_token_key, access_token_url, logger)
+        super().__init__(base_url, authorize_url, access_token_key, access_token_url, logger, request_params)
 
         self.oauth_token = oauth_token
         self.oauth_token_secret = oauth_token_secret
@@ -203,6 +204,9 @@ class OAuth1Client(Client):
         }
         oparams.update(params or {})
 
+        request_params = self.request_params.copy()
+        request_params.update(aio_kwargs)
+
         if self.oauth_token:
             oparams['oauth_token'] = self.oauth_token
 
@@ -216,7 +220,7 @@ class OAuth1Client(Client):
             oauth_token_secret=self.oauth_token_secret, **oparams)
         self.logger.debug("%s %s", url, oparams)
         return asyncio.wait_for(
-            aiorequest(method, url, params=oparams, headers=headers, loop=loop, **aio_kwargs),
+            aiorequest(method, url, params=oparams, headers=headers, loop=loop, **request_params),
             timeout, loop=loop)
 
     @asyncio.coroutine
@@ -280,9 +284,9 @@ class OAuth2Client(Client):
 
     def __init__(self, client_id, client_secret, base_url=None, authorize_url=None,
                  access_token=None, access_token_url=None, access_token_key=None, logger=None,
-                 **params):
+                 request_params={}, **params):
         """Initialize the client."""
-        super().__init__(base_url, authorize_url, access_token_key, access_token_url, logger)
+        super().__init__(base_url, authorize_url, access_token_key, access_token_url, logger, request_params)
 
         self.access_token = access_token
         self.client_id = client_id
@@ -300,6 +304,9 @@ class OAuth2Client(Client):
         url = self._get_url(url)
         params = params or {}
 
+        request_params = self.request_params.copy()
+        request_params.update(aio_kwargs)
+
         if self.access_token:
             params[self.access_token_key] = self.access_token
 
@@ -308,7 +315,7 @@ class OAuth2Client(Client):
             'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
         }
         return asyncio.wait_for(
-            aiorequest(method, url, params=params, headers=headers, loop=loop, **aio_kwargs),
+            aiorequest(method, url, params=params, headers=headers, loop=loop, **request_params),
             timeout, loop=loop)
 
     @asyncio.coroutine
@@ -415,10 +422,14 @@ class Bitbucket2Client(OAuth2Client):
                 'Accept': 'application/json',
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
             }
+
+        request_params = self.request_params.copy()
+        request_params.update(aio_kwargs)
+
         # noinspection PyArgumentList
         return asyncio.wait_for(
             aiorequest(
-                method, url, params=params, headers=headers, auth=auth, loop=loop, **aio_kwargs
+                method, url, params=params, headers=headers, auth=auth, loop=loop, **request_params
             ), timeout, loop=loop)
 
 
